@@ -30,26 +30,17 @@ type Changes struct {
 // sent to the EventPublisher which will create and emit change events.
 type changeTrackerDB struct {
 	db             *memdb.MemDB
-	durableCount   int64
+	durableCount   int
 	publisher      *stream.EventPublisher
 	processChanges func(ReadTxn, Changes) (*structs.Events, error)
 }
 
-// ChangeConfig
-type ChangeConfig struct {
-	DurableEventCount int
-}
-
-func NewChangeTrackerDB(db *memdb.MemDB, publisher *stream.EventPublisher, changesFn changeProcessor, cfg *ChangeConfig) *changeTrackerDB {
-	if cfg == nil {
-		cfg = &ChangeConfig{}
-	}
-
+func NewChangeTrackerDB(db *memdb.MemDB, publisher *stream.EventPublisher, changesFn changeProcessor, durableCount int) *changeTrackerDB {
 	return &changeTrackerDB{
 		db:             db,
 		publisher:      publisher,
 		processChanges: changesFn,
-		durableCount:   int64(cfg.DurableEventCount),
+		durableCount:   durableCount,
 	}
 }
 
@@ -195,51 +186,11 @@ func processDBChanges(tx ReadTxn, changes Changes) (*structs.Events, error) {
 	case structs.IgnoreUnknownTypeFlag:
 		// unknown event type
 		return nil, nil
-	case structs.NodeRegisterRequestType:
-		return GenericEventsFromChanges(tx, changes)
-	case structs.NodeUpdateStatusRequestType:
-		// TODO(drew) test
-		return GenericEventsFromChanges(tx, changes)
 	case structs.NodeDeregisterRequestType:
 		return NodeDeregisterEventFromChanges(tx, changes)
 	case structs.NodeUpdateDrainRequestType:
 		return NodeDrainEventFromChanges(tx, changes)
-	case structs.UpsertNodeEventsType:
-		return GenericEventsFromChanges(tx, changes)
-	case structs.DeploymentStatusUpdateRequestType:
-		return GenericEventsFromChanges(tx, changes)
-	case structs.DeploymentPromoteRequestType:
-		return GenericEventsFromChanges(tx, changes)
-	case structs.DeploymentAllocHealthRequestType:
-		return GenericEventsFromChanges(tx, changes)
-	case structs.ApplyPlanResultsRequestType:
-		// TODO test
-		return GenericEventsFromChanges(tx, changes)
-	case structs.EvalUpdateRequestType:
-		return GenericEventsFromChanges(tx, changes)
-	case structs.AllocClientUpdateRequestType:
-		return GenericEventsFromChanges(tx, changes)
-	case structs.JobRegisterRequestType:
-		// TODO(drew) test
-		return GenericEventsFromChanges(tx, changes)
-	case structs.AllocUpdateRequestType:
-		// TODO(drew) test
-		return GenericEventsFromChanges(tx, changes)
-	case structs.JobDeregisterRequestType:
-		// TODO(drew) test / handle delete
-		return GenericEventsFromChanges(tx, changes)
-	case structs.JobBatchDeregisterRequestType:
-		// TODO(drew) test & handle delete
-		return GenericEventsFromChanges(tx, changes)
-	case structs.AllocUpdateDesiredTransitionRequestType:
-		// TODO(drew) drain
-		return GenericEventsFromChanges(tx, changes)
-	case structs.NodeUpdateEligibilityRequestType:
-		// TODO(drew) test, drain
-		return GenericEventsFromChanges(tx, changes)
-	case structs.BatchNodeUpdateDrainRequestType:
-		// TODO(drew) test, drain
+	default:
 		return GenericEventsFromChanges(tx, changes)
 	}
-	return nil, nil
 }

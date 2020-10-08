@@ -2,6 +2,7 @@ package stream
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -51,6 +52,10 @@ type subscriptions struct {
 	byToken map[string]map[*SubscribeRequest]*Subscription
 }
 
+// NewEventPublisher returns an EventPublisher for publishing change events.
+// A goroutine is run in the background to publish events to an event buffer.
+// Cancelling the context will shutdown the goroutine to free resources, and stop
+// all publishing.
 func NewEventPublisher(ctx context.Context, cfg EventPublisherCfg) *EventPublisher {
 	if cfg.EventBufferTTL == 0 {
 		cfg.EventBufferTTL = 1 * time.Hour
@@ -80,6 +85,7 @@ func NewEventPublisher(ctx context.Context, cfg EventPublisherCfg) *EventPublish
 	return e
 }
 
+// Returns the current length of the event buffer
 func (e *EventPublisher) Len() int {
 	return e.eventBuf.Len()
 }
@@ -91,7 +97,18 @@ func (e *EventPublisher) Publish(events *structs.Events) {
 	}
 }
 
-// Subscribe returns a new Subscription for a given request.
+// Subscribe returns a new Subscription for a given request. A Subscription
+// will receive an initial empty currentItem value which points to the first item
+// in the buffer. This allows the new subscription to call Next() without first checking
+// for the current Item.
+//
+// A Subscription will start at the requested index, or as close as possible to
+// the requested index if it is no longer in the buffer. If StartExactlyAtIndex is
+// set and the index is no longer in the buffer or not yet in the buffer an error
+// will be returned.
+//
+// When a caller is finished with the subscription it must call Subscription.Unsubscribe
+// to free ACL tracking resources. TODO(drew) ACL tracking
 func (e *EventPublisher) Subscribe(req *SubscribeRequest) (*Subscription, error) {
 	e.lock.Lock()
 	defer e.lock.Unlock()
@@ -103,8 +120,10 @@ func (e *EventPublisher) Subscribe(req *SubscribeRequest) (*Subscription, error)
 	} else {
 		head = e.eventBuf.Head()
 	}
-	if offset > 0 {
-		e.logger.Warn("requested index no longer in buffer", "requsted", int(req.Index), "closest", int(head.Events.Index))
+	if offset > 0 && req.StartExactlyAtIndex {
+		return nil, fmt.Errorf("requested index not in buffer")
+	} else {
+		e.logger.Debug("requested index no longer in buffer", "requsted", int(req.Index), "closest", int(head.Events.Index))
 	}
 
 	// Empty head so that calling Next on sub
@@ -118,6 +137,7 @@ func (e *EventPublisher) Subscribe(req *SubscribeRequest) (*Subscription, error)
 	return sub, nil
 }
 
+// CloseAll closes all subscriptions
 func (e *EventPublisher) CloseAll() {
 	e.subscriptions.closeAll()
 }

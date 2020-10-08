@@ -34,7 +34,7 @@ func TestNDJson(t *testing.T) {
 
 	require.Equal(t, expected.Bytes(), out1.Data)
 	select {
-	case _ = <-out:
+	case <-out:
 		t.Fatalf("Did not expect another message")
 	case <-time.After(100 * time.Millisecond):
 	}

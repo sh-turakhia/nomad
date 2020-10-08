@@ -296,10 +296,6 @@ func nodeNotReady(n *structs.Node) {
 	n.Status = structs.NodeStatusInit
 }
 
-func nodeReady(n *structs.Node) {
-	n.Status = structs.NodeStatusReady
-}
-
 func nodeIDTwo(n *structs.Node) {
 	n.ID = testNodeIDTwo()
 }

@@ -51,6 +51,12 @@ type SubscribeRequest struct {
 	Namespace string
 
 	Topics map[structs.Topic][]string
+
+	// StartExactlyAtIndex specifies if a subscription needs to
+	// start exactly at the requested Index. If set to false,
+	// the closest index in the buffer will be returned if there is not
+	// an exact match
+	StartExactlyAtIndex bool
 }
 
 func newSubscription(req *SubscribeRequest, item *bufferItem, unsub func()) *Subscription {
@@ -138,7 +144,7 @@ func filter(req *SubscribeRequest, events []structs.Event) []structs.Event {
 			for _, k := range keys {
 				// if req.Namespace != "" && e.Namespace != "" && e.Namespace ==
 				// if e.Namespace != "" && e.Namespace
-				if e.Key == k || k == AllKeys {
+				if e.Key == k || k == AllKeys || filterKeyContains(e.FilterKeys, k) {
 					count++
 				}
 			}
@@ -169,11 +175,20 @@ func filter(req *SubscribeRequest, events []structs.Event) []structs.Event {
 				continue
 			}
 			for _, k := range keys {
-				if e.Key == k || k == AllKeys {
+				if e.Key == k || k == AllKeys || filterKeyContains(e.FilterKeys, k) {
 					result = append(result, e)
 				}
 			}
 		}
 	}
 	return result
+}
+
+func filterKeyContains(filterKeys []string, key string) bool {
+	for _, fk := range filterKeys {
+		if fk == key {
+			return true
+		}
+	}
+	return false
 }
